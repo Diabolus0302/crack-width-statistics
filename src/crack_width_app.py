@@ -7,13 +7,13 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-import pandas as pd
+from openpyxl import Workbook
 from PIL import Image, ImageDraw, ImageOps, ImageTk
 from scipy import ndimage as ndi
-from skimage import measure, morphology
+from skimage.morphology import skeletonize
 
 try:
     import tkinter as tk
@@ -53,7 +53,7 @@ class AnalysisResult:
     pixel_length_share: np.ndarray
     component_labels: np.ndarray
     segments: List[SegmentStat]
-    bin_table: pd.DataFrame
+    bin_table: List[Dict[str, object]]
     total_length_px: float
     total_length_unit: float
 
@@ -115,11 +115,18 @@ def binary_mask_from_image(
         foreground = bright if bright.mean() <= 0.5 else ~bright
     else:
         foreground = ~bright if crack_is_dark else bright
-    try:
-        foreground = morphology.remove_small_objects(foreground.astype(bool), max_size=2)
-    except TypeError:
-        foreground = morphology.remove_small_objects(foreground.astype(bool), min_size=3)
+    foreground = remove_small_components(foreground.astype(bool), max_size=2)
     return ndi.binary_fill_holes(foreground).astype(bool)
+
+
+def remove_small_components(mask: np.ndarray, max_size: int) -> np.ndarray:
+    labels, count = ndi.label(mask, structure=np.ones((3, 3), dtype=bool))
+    if count == 0:
+        return mask.astype(bool)
+    sizes = np.bincount(labels.ravel())
+    remove = sizes <= max_size
+    remove[0] = False
+    return mask & ~remove[labels]
 
 
 def build_width_bins(range_min: float, range_max: float, step: float) -> List[Tuple[float, float]]:
@@ -180,30 +187,38 @@ def analyze_binary_image(
 ) -> AnalysisResult:
     gray = image_to_gray(image_path)
     mask = binary_mask_from_image(gray, threshold, auto_foreground, crack_is_dark)
-    skeleton = morphology.skeletonize(mask)
+    skeleton = skeletonize(mask)
     distances = ndi.distance_transform_edt(mask)
     widths_px = distances * 2.0
     total_length_px, share = skeleton_edge_lengths(skeleton)
     px_to_unit = unit_factor(pixel_value, real_value)
 
-    labels = measure.label(skeleton, connectivity=2)
-    props = measure.regionprops(labels)
+    labels, label_count = ndi.label(skeleton, structure=np.ones((3, 3), dtype=bool))
+    objects = ndi.find_objects(labels)
     segments: List[SegmentStat] = []
     kept = np.zeros_like(skeleton, dtype=bool)
     segment_id = 1
 
-    for prop in props:
-        component = labels == prop.label
+    for label_id in range(1, label_count + 1):
+        label_slice = objects[label_id - 1]
+        if label_slice is None:
+            continue
+        component = labels[label_slice] == label_id
         points = int(component.sum())
         if points < min_skeleton_points:
             continue
-        component_share = share * component
+        component_share = share[label_slice] * component
         length_px = float(component_share.sum())
         if length_px <= 0:
             continue
-        width_px = float((widths_px * component_share).sum() / length_px)
-        minr, minc, maxr, maxc = prop.bbox
-        cy, cx = prop.centroid
+        width_px = float((widths_px[label_slice] * component_share).sum() / length_px)
+        coords = np.argwhere(component)
+        minr = label_slice[0].start
+        minc = label_slice[1].start
+        maxr = label_slice[0].stop
+        maxc = label_slice[1].stop
+        cy = float(coords[:, 0].mean() + minr)
+        cx = float(coords[:, 1].mean() + minc)
         segments.append(
             SegmentStat(
                 segment_id=segment_id,
@@ -220,7 +235,7 @@ def analyze_binary_image(
                 bbox_h=int(maxr - minr),
             )
         )
-        kept |= component
+        kept[label_slice] |= component
         segment_id += 1
 
     skeleton = kept
@@ -254,32 +269,71 @@ def analyze_binary_image(
         pixel_length_share=share,
         component_labels=labels,
         segments=segments,
-        bin_table=pd.DataFrame(bin_rows),
+        bin_table=bin_rows,
         total_length_px=total_length_px,
         total_length_unit=total_length_unit,
     )
 
 
-def segments_to_dataframe(segments: List[SegmentStat], unit_name: str) -> pd.DataFrame:
-    return pd.DataFrame(
-        [
-            {
-                "裂纹段编号": s.segment_id,
-                "长度(px)": s.length_px,
-                "宽度(px)": s.width_px,
-                f"长度({unit_name})": s.length_unit,
-                f"宽度({unit_name})": s.width_unit,
-                "骨架点数": s.skeleton_points,
-                "质心X": s.centroid_x,
-                "质心Y": s.centroid_y,
-                "边界框X": s.bbox_x,
-                "边界框Y": s.bbox_y,
-                "边界框宽": s.bbox_w,
-                "边界框高": s.bbox_h,
-            }
-            for s in segments
-        ]
-    )
+def segment_columns(unit_name: str) -> List[str]:
+    return [
+        "裂纹段编号",
+        "长度(px)",
+        "宽度(px)",
+        f"长度({unit_name})",
+        f"宽度({unit_name})",
+        "骨架点数",
+        "质心X",
+        "质心Y",
+        "边界框X",
+        "边界框Y",
+        "边界框宽",
+        "边界框高",
+    ]
+
+
+def segments_to_rows(segments: List[SegmentStat], unit_name: str) -> List[Dict[str, object]]:
+    return [
+        {
+            "裂纹段编号": s.segment_id,
+            "长度(px)": s.length_px,
+            "宽度(px)": s.width_px,
+            f"长度({unit_name})": s.length_unit,
+            f"宽度({unit_name})": s.width_unit,
+            "骨架点数": s.skeleton_points,
+            "质心X": s.centroid_x,
+            "质心Y": s.centroid_y,
+            "边界框X": s.bbox_x,
+            "边界框Y": s.bbox_y,
+            "边界框宽": s.bbox_w,
+            "边界框高": s.bbox_h,
+        }
+        for s in segments
+    ]
+
+
+def write_table(ws, rows: List[Dict[str, object]], start_row: int, columns: Optional[List[str]] = None) -> int:
+    if columns is None:
+        columns = list(rows[0].keys()) if rows else []
+    if not columns:
+        return start_row
+    for col_idx, column in enumerate(columns, start=1):
+        ws.cell(row=start_row, column=col_idx, value=column)
+    for row_idx, row_data in enumerate(rows, start=start_row + 1):
+        for col_idx, column in enumerate(columns, start=1):
+            ws.cell(row=row_idx, column=col_idx, value=row_data.get(column))
+    return start_row + len(rows) + 1
+
+
+def unique_sheet_name(workbook: Workbook, name: str) -> str:
+    base = CrackStatsApp.safe_sheet_name(name)
+    candidate = base
+    suffix = 1
+    while candidate in workbook.sheetnames:
+        suffix_text = f"_{suffix}"
+        candidate = f"{base[:31 - len(suffix_text)]}{suffix_text}"
+        suffix += 1
+    return candidate
 
 
 def colors_for_bins(count: int) -> List[Tuple[int, int, int]]:
@@ -697,70 +751,86 @@ class CrackStatsApp(tk.Tk):
         summary_rows = []
 
         try:
-            with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
-                for idx, binary_path in enumerate(self.binary_images, start=1):
-                    result = analyze_binary_image(
-                        image_path=binary_path,
-                        pixel_value=pixel_value,
-                        real_value=real_value,
-                        unit_name=unit_name,
-                        bins=bins,
-                        threshold=threshold,
-                        auto_foreground=self.auto_foreground_var.get(),
-                        crack_is_dark=self.crack_dark_var.get(),
-                        min_skeleton_points=min_points,
-                    )
-                    seg_df = segments_to_dataframe(result.segments, unit_name)
-                    bin_df = result.bin_table.copy()
-                    seg_df.to_excel(writer, sheet_name=self.safe_sheet_name(result.name), index=False, startrow=0)
-                    bin_df.to_excel(writer, sheet_name=self.safe_sheet_name(result.name), index=False, startrow=len(seg_df) + 3)
+            workbook = Workbook()
+            workbook.remove(workbook.active)
+            segment_cols = segment_columns(unit_name)
 
-                    named_seg_df = seg_df.copy()
-                    named_seg_df.insert(0, "图片名", result.name)
-                    all_segment_frames.append(named_seg_df)
+            for idx, binary_path in enumerate(self.binary_images, start=1):
+                result = analyze_binary_image(
+                    image_path=binary_path,
+                    pixel_value=pixel_value,
+                    real_value=real_value,
+                    unit_name=unit_name,
+                    bins=bins,
+                    threshold=threshold,
+                    auto_foreground=self.auto_foreground_var.get(),
+                    crack_is_dark=self.crack_dark_var.get(),
+                    min_skeleton_points=min_points,
+                )
+                seg_rows = segments_to_rows(result.segments, unit_name)
+                bin_rows = list(result.bin_table)
 
-                    named_bin_df = bin_df.copy()
-                    named_bin_df.insert(0, "图片名", result.name)
-                    all_bin_frames.append(named_bin_df)
+                sheet = workbook.create_sheet(unique_sheet_name(workbook, result.name))
+                next_row = write_table(sheet, seg_rows, 1, segment_cols)
+                write_table(sheet, bin_rows, next_row + 2)
 
-                    summary_rows.append(
-                        {
-                            "图片名": result.name,
-                            "裂纹段数": len(result.segments),
-                            "总长度(px)": result.total_length_px,
-                            f"总长度({unit_name})": result.total_length_unit,
+                for row_data in seg_rows:
+                    named_row = {"图片名": result.name}
+                    named_row.update(row_data)
+                    all_segment_frames.append(named_row)
+
+                for row_data in bin_rows:
+                    named_row = {"图片名": result.name}
+                    named_row.update(row_data)
+                    all_bin_frames.append(named_row)
+
+                summary_rows.append(
+                    {
+                        "图片名": result.name,
+                        "裂纹段数": len(result.segments),
+                        "总长度(px)": result.total_length_px,
+                        f"总长度({unit_name})": result.total_length_unit,
+                    }
+                )
+
+                original = read_display_image(self.original_map.get(binary_path.name), result.mask.shape)
+                overlay = draw_skeleton_pixels(
+                    original,
+                    result,
+                    bins,
+                    pixel_value,
+                    real_value,
+                    mode="blue",
+                    show_labels=self.show_labels_var.get(),
+                )
+                overlay.save(preview_dir / f"{result.name}_overlay.png")
+                self.status_var.set(f"正在导出 {idx}/{len(self.binary_images)}：{result.name}")
+                self.update_idletasks()
+
+            if all_segment_frames:
+                write_table(workbook.create_sheet("总汇总表"), all_segment_frames, 1, ["图片名"] + segment_cols)
+            if all_bin_frames:
+                write_table(workbook.create_sheet("各图宽度区间统计"), all_bin_frames, 1)
+                lower_col = f"区间下限({unit_name})"
+                upper_col = f"区间上限({unit_name})"
+                length_col = f"累计长度({unit_name})"
+                grouped_rows: Dict[Tuple[object, object], Dict[str, object]] = {}
+                for row_data in all_bin_frames:
+                    key = (row_data[lower_col], row_data[upper_col])
+                    if key not in grouped_rows:
+                        grouped_rows[key] = {
+                            lower_col: row_data[lower_col],
+                            upper_col: row_data[upper_col],
+                            "累计长度(px)": 0.0,
+                            length_col: 0.0,
+                            "骨架点数": 0,
                         }
-                    )
-
-                    original = read_display_image(self.original_map.get(binary_path.name), result.mask.shape)
-                    overlay = draw_skeleton_pixels(
-                        original,
-                        result,
-                        bins,
-                        pixel_value,
-                        real_value,
-                        mode="blue",
-                        show_labels=self.show_labels_var.get(),
-                    )
-                    overlay.save(preview_dir / f"{result.name}_overlay.png")
-                    self.status_var.set(f"正在导出 {idx}/{len(self.binary_images)}：{result.name}")
-                    self.update_idletasks()
-
-                if all_segment_frames:
-                    pd.concat(all_segment_frames, ignore_index=True).to_excel(writer, sheet_name="总汇总表", index=False)
-                if all_bin_frames:
-                    pd.concat(all_bin_frames, ignore_index=True).to_excel(writer, sheet_name="各图宽度区间统计", index=False)
-                    total_bin = pd.concat(all_bin_frames, ignore_index=True)
-                    lower_col = f"区间下限({unit_name})"
-                    upper_col = f"区间上限({unit_name})"
-                    length_col = f"累计长度({unit_name})"
-                    grouped = (
-                        total_bin.groupby([lower_col, upper_col], dropna=False)[["累计长度(px)", length_col, "骨架点数"]]
-                        .sum()
-                        .reset_index()
-                    )
-                    grouped.to_excel(writer, sheet_name="宽度区间总统计", index=False)
-                pd.DataFrame(summary_rows).to_excel(writer, sheet_name="图片总览", index=False)
+                    grouped_rows[key]["累计长度(px)"] += float(row_data["累计长度(px)"])
+                    grouped_rows[key][length_col] += float(row_data[length_col])
+                    grouped_rows[key]["骨架点数"] += int(row_data["骨架点数"])
+                write_table(workbook.create_sheet("宽度区间总统计"), list(grouped_rows.values()), 1)
+            write_table(workbook.create_sheet("图片总览"), summary_rows, 1)
+            workbook.save(excel_path)
 
             self.status_var.set(f"导出完成：{excel_path}")
             messagebox.showinfo("导出完成", f"已导出：\n{excel_path}\n\n预览图目录：\n{preview_dir}")

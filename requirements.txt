@@ -2,6 +2,5 @@ numpy
 scipy
 scikit-image
 pillow
-pandas
 openpyxl
 pyinstaller

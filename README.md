@@ -63,13 +63,16 @@ On Windows, you can also double-click `run_app.bat`.
 ## Windows Executable
 
 A Windows executable is available from the GitHub release page when a release
-is published. To rebuild it locally:
+is published. To rebuild a smaller executable locally, use a clean pip virtual
+environment:
 
 ```bat
-build_exe.bat
+build_exe_slim.bat
 ```
 
-The generated file is `dist\SiCnwCrackWidthStats.exe`.
+The generated file is `dist\SiCnwCrackWidthStats.exe`. The slim build avoids
+packaging unused modules such as `pandas`, plotting libraries, Jupyter/IPython,
+and unused scikit-image submodules.
 
 The default data layout is:
 

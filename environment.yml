@@ -7,7 +7,6 @@ dependencies:
   - scipy
   - scikit-image
   - pillow
-  - pandas
   - openpyxl
   - pip
   - pip:
