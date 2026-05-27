@@ -13,6 +13,9 @@ env/
 .conda/
 
 # Generated analysis outputs
+build/
+dist/
+*.spec
 crack_statistics.xlsx
 crack_width_statistics.xlsx
 裂纹统计输出_*/

@@ -60,6 +60,17 @@ python src\crack_width_app.py
 
 On Windows, you can also double-click `run_app.bat`.
 
+## Windows Executable
+
+A Windows executable is available from the GitHub release page when a release
+is published. To rebuild it locally:
+
+```bat
+build_exe.bat
+```
+
+The generated file is `dist\SiCnwCrackWidthStats.exe`.
+
 The default data layout is:
 
 ```text

@@ -22,8 +22,9 @@ except ImportError as exc:
     raise SystemExit("当前 Python 环境缺少 tkinter，请安装带 tkinter 的 Python。") from exc
 
 
-APP_DIR = Path(__file__).resolve().parent
-DEFAULT_DATA_DIR = APP_DIR.parent / "SiCnw-bu" / "crop_20260219_194515"
+APP_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
+PROJECT_DIR = APP_DIR if getattr(sys, "frozen", False) else APP_DIR.parent
+DEFAULT_DATA_DIR = PROJECT_DIR / "SiCnw-bu" / "crop_20260219_194515"
 IMAGE_SUFFIXES = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp"}
 
 

@@ -9,3 +9,6 @@ dependencies:
   - pillow
   - pandas
   - openpyxl
+  - pip
+  - pip:
+      - pyinstaller
