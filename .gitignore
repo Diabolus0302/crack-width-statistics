@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Local environments
+.venv/
+venv/
+env/
+.conda/
+
+# Generated analysis outputs
+crack_statistics.xlsx
+crack_width_statistics.xlsx
+裂纹统计输出_*/
+*_overlay.png
+*.log
+
+# Local microscopy data. Add only curated example data that can be public.
+SiCnw-bu/
+data/*
+!data/README.md
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

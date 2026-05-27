@@ -1,0 +1,11 @@
+name: crack_width_stats
+channels:
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy
+  - scipy
+  - scikit-image
+  - pillow
+  - pandas
+  - openpyxl

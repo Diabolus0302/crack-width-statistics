@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the associated manuscript and this repository."
+title: "SiCnw Crack Width Statistics"
+version: "0.1.0"
+date-released: "2026-05-27"
+authors:
+  - family-names: "Zhang"
+    given-names: "Yujia"
+repository-code: "https://github.com/Diabolus0302/sicnw-crack-width-statistics"
+license: "MIT"
