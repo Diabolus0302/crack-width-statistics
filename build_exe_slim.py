@@ -29,10 +29,12 @@ def main() -> None:
         "--windowed",
         "--onefile",
         "--name",
-        "SiCnwCrackWidthStats",
+        "CrackWidthStatistics",
+        "--hidden-import",
+        "skimage._shared.geometry",
     ]
 
-    for dll in ["tk86t.dll", "tcl86t.dll", "zlib.dll", "ffi.dll", "LIBBZ2.dll"]:
+    for dll in ["tk86t.dll", "tcl86t.dll", "zlib.dll", "ffi.dll", "LIBBZ2.dll", "libexpat.dll", "expat.dll"]:
         args.extend(existing_option("--add-binary", conda_bin / dll, "."))
     args.extend(existing_option("--add-data", conda_lib / "tcl8.6", r"tcl\tcl8.6"))
     args.extend(existing_option("--add-data", conda_lib / "tk8.6", r"tcl\tk8.6"))
@@ -51,7 +53,6 @@ def main() -> None:
         "skimage.data",
         "skimage.io",
         "skimage.viewer",
-        "skimage.filters",
         "skimage.transform",
         "skimage.feature",
         "skimage.restoration",
@@ -59,7 +60,6 @@ def main() -> None:
         "skimage.segmentation",
         "skimage.registration",
         "skimage.graph",
-        "skimage.measure",
     ]:
         args.extend(["--exclude-module", module])
 

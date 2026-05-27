@@ -1,4 +1,6 @@
-# SiCnw Crack Width Statistics
+# Crack Width Statistics
+
+![Crack Width Statistics GUI](docs/software-screenshot.png)
 
 A desktop Python tool for measuring crack length and width distributions from
 binarized microscopy images. The repository is organized in a lightweight
@@ -23,16 +25,18 @@ metadata files for authorship, citation, and licensing.
 
 ```text
 .
-├── src/
-│   └── crack_width_app.py
-├── data/
-│   └── README.md
-├── AUTHORS.rst
-├── CITATION.cff
-├── LICENSE
-├── environment.yml
-├── requirements.txt
-└── run_app.bat
+|-- src/
+|   `-- crack_width_app.py
+|-- data/
+|   `-- README.md
+|-- docs/
+|   `-- software-screenshot.png
+|-- AUTHORS.rst
+|-- CITATION.cff
+|-- LICENSE
+|-- environment.yml
+|-- requirements.txt
+`-- run_app.bat
 ```
 
 ## Installation
@@ -62,37 +66,37 @@ On Windows, you can also double-click `run_app.bat`.
 
 ## Windows Executable
 
-A Windows executable is available from the GitHub release page when a release
-is published. To rebuild a smaller executable locally, use a clean pip virtual
-environment:
+A Windows executable is available from the GitHub release page. To rebuild the
+executable locally, use a clean pip virtual environment:
 
 ```bat
 build_exe_slim.bat
 ```
 
-The generated file is `dist\SiCnwCrackWidthStats.exe`. The slim build avoids
+The generated file is `dist\CrackWidthStatistics.exe`. The slim build avoids
 packaging unused modules such as `pandas`, plotting libraries, Jupyter/IPython,
-and unused scikit-image submodules.
+and unused scikit-image submodules while keeping the dependencies required by
+the skeletonization workflow.
 
 The default data layout is:
 
 ```text
-SiCnw-bu/
-└── crop_20260219_194515/
-    ├── 原图/
-    ├── 二值化图/
-    └── scale_info.txt
+example-data-root/
+`-- crop_20260219_194515/
+    |-- 原图/
+    |-- 二值化图/
+    `-- scale_info.txt
 ```
 
 The GUI lets you choose a different data directory. The selected directory
-should contain `原图` and `二值化图` subfolders. Statistics are computed from
-the binarized images, and matching source images are used for overlays.
+should contain `原图` and `二值化图` subfolders. Statistics are computed from the
+binarized images, and matching source images are used for overlays.
 
 ## Width Intervals
 
-Use `宽度下限`, `宽度上限`, and `区间步长` in the GUI to define the width
-range. Values below the lower bound or above the upper bound are not included
-in the interval summary table.
+Use the width lower bound, width upper bound, and interval step fields in the
+GUI to define the width range. Values below the lower bound or above the upper
+bound are not included in the interval summary table.
 
 ## Outputs
 
@@ -103,6 +107,11 @@ The export button creates:
 - a global segment summary;
 - a global width-interval summary;
 - overlay preview images for manual checking.
+
+## Authors
+
+Bing Liu, Jia Sun, Lingxiang Guo, Yujia Zhang, Yihao Ding, Tianyu Liu, Laura
+Feldmann, Xuemin Yin, Dou Hu, Yang Xu, Ralf Riedel, and Qiangang Fu.
 
 ## Citation
 

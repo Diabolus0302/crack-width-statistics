@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import json
 import re
 import sys
 from dataclasses import dataclass
@@ -24,7 +25,7 @@ except ImportError as exc:
 
 APP_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
 PROJECT_DIR = APP_DIR if getattr(sys, "frozen", False) else APP_DIR.parent
-DEFAULT_DATA_DIR = PROJECT_DIR / "SiCnw-bu" / "crop_20260219_194515"
+DEFAULT_DATA_DIR = PROJECT_DIR / "example-data-root" / "crop_20260219_194515"
 IMAGE_SUFFIXES = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp"}
 
 
@@ -334,6 +335,60 @@ def unique_sheet_name(workbook: Workbook, name: str) -> str:
         candidate = f"{base[:31 - len(suffix_text)]}{suffix_text}"
         suffix += 1
     return candidate
+
+
+def run_self_test(data_dir: Path, output_dir: Path) -> int:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    report_path = output_dir / "packaged_self_test_report.json"
+    workbook_path = output_dir / "packaged_self_test.xlsx"
+    report: Dict[str, object] = {
+        "status": "error",
+        "data_dir": str(data_dir),
+        "workbook": str(workbook_path),
+    }
+    try:
+        pixel_value, real_value, unit_name = read_scale_info(data_dir)
+        bins = build_width_bins(0.0, 3.0, 0.5)
+        binary_dir = data_dir / "\u4e8c\u503c\u5316\u56fe"
+        binary_images = list_images(binary_dir)
+        if not binary_images:
+            raise FileNotFoundError(f"No binary images found in {binary_dir}")
+
+        result = analyze_binary_image(
+            image_path=binary_images[0],
+            pixel_value=pixel_value,
+            real_value=real_value,
+            unit_name=unit_name,
+            bins=bins,
+            threshold=128,
+            auto_foreground=True,
+            crack_is_dark=True,
+            min_skeleton_points=5,
+        )
+
+        workbook = Workbook()
+        workbook.remove(workbook.active)
+        sheet = workbook.create_sheet(unique_sheet_name(workbook, result.name))
+        next_row = write_table(sheet, segments_to_rows(result.segments, unit_name), 1, segment_columns(unit_name))
+        write_table(sheet, result.bin_table, next_row + 2)
+        workbook.save(workbook_path)
+
+        report.update(
+            {
+                "status": "ok",
+                "image": str(binary_images[0]),
+                "segment_count": len(result.segments),
+                "total_length_px": result.total_length_px,
+                "total_length_unit": result.total_length_unit,
+                "bin_count": len(result.bin_table),
+            }
+        )
+        return 0
+    except Exception as exc:
+        report["error"] = repr(exc)
+        return 1
+    finally:
+        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def colors_for_bins(count: int) -> List[Tuple[int, int, int]]:
@@ -844,6 +899,12 @@ class CrackStatsApp(tk.Tk):
 
 
 def main() -> None:
+    if "--self-test" in sys.argv:
+        args = sys.argv[1:]
+        pos = args.index("--self-test")
+        data_dir = Path(args[pos + 1]) if pos + 1 < len(args) else DEFAULT_DATA_DIR
+        output_dir = Path(args[pos + 2]) if pos + 2 < len(args) else Path.cwd()
+        raise SystemExit(run_self_test(data_dir, output_dir))
     app = CrackStatsApp()
     app.mainloop()
 

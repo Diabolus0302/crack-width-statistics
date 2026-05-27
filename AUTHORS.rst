@@ -1,13 +1,15 @@
 Authors
 =======
 
-Development Lead
-----------------
-
+* Bing Liu
+* Jia Sun
+* Lingxiang Guo
 * Yujia Zhang
-
-Acknowledgments
----------------
-
-This repository was prepared for public release alongside a research manuscript.
-Please update this file with all contributors before publication.
+* Yihao Ding
+* Tianyu Liu
+* Laura Feldmann
+* Xuemin Yin
+* Dou Hu
+* Yang Xu
+* Ralf Riedel
+* Qiangang Fu

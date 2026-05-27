@@ -19,12 +19,13 @@ dist/
 *.spec
 crack_statistics.xlsx
 crack_width_statistics.xlsx
+*_self_test/
 裂纹统计输出_*/
 *_overlay.png
 *.log
 
 # Local microscopy data. Add only curated example data that can be public.
-SiCnw-bu/
+example-data-root/
 data/*
 !data/README.md
 
